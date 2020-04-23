@@ -3,7 +3,7 @@ package org.json5;
 import java.io.ByteArrayInputStream;
 import java.io.InputStreamReader;
 import java.nio.charset.StandardCharsets;
-import org.json5.Lexer.State;
+import java.util.Stack;
 import org.json5.Lexer.Token;
 import org.json5.Lexer.TokenType;
 
@@ -15,7 +15,8 @@ public class Parser {
     DEFAULT,
     OBJECT_KEY,
     OBJECT_VALUE,
-    ARRAY
+    ARRAY,
+    EOF
   }
 
   public String parse(String json5) {
@@ -23,22 +24,60 @@ public class Parser {
         new InputStreamReader(new ByteArrayInputStream(json5.getBytes(StandardCharsets.UTF_8))));
 
     Token token = new Token(TokenType.TokenType_Unset);
+    StringBuilder json = new StringBuilder();
+    Stack<TokenType> stack = new Stack<>();
 
-    while (true) {
+    while (currentState != State.EOF) {
       switch (currentState) {
         case DEFAULT:
-          token = lexer.getNextToken(Lexer.State.DEFAULT);
-        case OBJECT_KEY:
-          token = lexer.getNextToken(Lexer.State.OBJECT_KEY);
+          token = lexer.getNextToken();
+          break;
+        case EOF:
+          break;
+        default:
+          throw new IllegalStateException("We shouldn't be here");
       }
 
+      System.out.println("Token: " + token.tokenType + " - " + token.value);
       switch (token.tokenType) {
+        case EOF:
+          if (!stack.isEmpty()) {
+            throw new IllegalStateException("Received EOF when there was more stuff expected");
+          }
+          currentState = State.EOF;
+          break;
         case PUNCTUATION_OPENOBJECT:
-          currentState = State.OBJECT_KEY;
+          stack.push(token.tokenType);
+          json.append(token.value);
+          break;
+        case PUNCTUATION_CLOSEOBJECT:
+          TokenType pop = stack.pop();
+          if (pop != TokenType.PUNCTUATION_OPENOBJECT) {
+            throw new IllegalStateException("Received " + token.tokenType
+                    + " at line " + lexer.getCurrentLine() + " column "
+                    + lexer.getCurrentColumn());
+          }
+          currentState = State.DEFAULT;
+          json.append(token.value);
+          break;
+        case PUNCTUATION_OPENARRAY:
+          stack.push(token.tokenType);
+          json.append(token.value);
+          break;
+        case PUNCTUATION_CLOSEARRAY:
+          pop = stack.pop();
+          if (pop != TokenType.PUNCTUATION_OPENARRAY) {
+            throw new IllegalStateException("Received " + token.tokenType
+                + " at line " + lexer.getCurrentLine() + " column "
+                + lexer.getCurrentColumn());
+          }
+          currentState = State.DEFAULT;
+          json.append(token.value);
+          break;
       }
     }
 
-//    return "";
+    return json.toString();
   }
 
 }

@@ -358,6 +358,14 @@ public class Lexer {
     }
   }
 
+  public int getCurrentLine() {
+    return currentLine + 1;
+  }
+
+  public int getCurrentColumn() {
+    return currentColumn;
+  }
+
   enum State {
     State_Unset,
     ERROR,
